@@ -214,9 +214,8 @@ export default class Generator {
       .join('\n')
   }
 
-  _generateCspString (html) {
-    const { hashAlgorithm, isReportOnly, policies, unsafeInlineCompatibility } = this.options.build.csp
-    const dom = parse(html, { script: true, style: true })
+  _generateCspString (dom) {
+    const { hashAlgorithm, policies, unsafeInlineCompatibility } = this.options.build.csp
     
     const containsUnsafeInlineScriptSrc = policies['script-src'] && policies['script-src'].includes('\'unsafe-inline\'')
     const shouldHashScriptSrc = unsafeInlineCompatibility || !containsUnsafeInlineScriptSrc
@@ -291,13 +290,27 @@ export default class Generator {
     }
 
     const { csp } = this.options.build
-    const isPolicyAvailable = typeof policies === 'object' && policies !== null && !Array.isArray(policies)
+    const isPolicyAvailable = typeof csp.policies === 'object' && csp.policies !== null && !Array.isArray(csp.policies)
 
     if (csp && isPolicyAvailable && html) {
-      const cspString = this._generateCspString(html)
-      // save it if needed
-      // display if needed
-      // add meta if needed
+      const dom = parse(html, { script: true, style: true })
+      const cspString = this._generateCspString(dom)
+
+      if (csp.writePath) {
+        await fsExtra.writeFile(path.join(this.options.generate.dir, csp.writePath), `${cspString}`, 'utf8')
+      }
+
+      if (csp.showResult) {
+        consola.info(`Content Security Policy: ${cspString}`)
+      }
+
+      if (csp.addMeta) {
+        // NOTE: Report-only and policies for frame-ancestors and sandbox are not supported in meta tag
+        const head = dom.querySelector('head')
+        head.appendChild(`<meta http-equiv="Content-Security-Policy" content="${cspString}">`)
+
+        html = dom.toString()
+      }
     }
 
     await fsExtra.writeFile(fallbackPath, html, 'utf8')
