@@ -214,6 +214,54 @@ export default class Generator {
       .join('\n')
   }
 
+  _generateCspString (html) {
+    const { hashAlgorithm, isReportOnly, policies, unsafeInlineCompatibility } = this.options.build.csp
+    const dom = parse(html, { script: true, style: true })
+    
+    const containsUnsafeInlineScriptSrc = policies['script-src'] && policies['script-src'].includes('\'unsafe-inline\'')
+    const shouldHashScriptSrc = unsafeInlineCompatibility || !containsUnsafeInlineScriptSrc
+
+    let scriptSrcHashes
+    const inlineScriptTags = dom.querySelectorAll('script')
+    const inlineStyleTags = dom.querySelectorAll('style')
+    if (shouldHashScriptSrc) {
+      scriptSrcHashes = inlineScriptTags.reduce((hashList, { rawText }) => {
+        const hash = crypto.createHash(hashAlgorithm)
+        hash.update(rawText)
+        hashList.push(`'${hashAlgorithm}-${hash.digest('base64')}'`)
+        return hashList
+      }, [])
+    }
+
+    const styleSrcHashes = inlineStyleTags.reduce((hashList, { rawText }) => {
+      const hash = crypto.createHash(hashAlgorithm)
+      hash.update(rawText)
+      hashList.push(`'${hashAlgorithm}-${hash.digest('base64')}'`)
+      return hashList
+    }, [])
+
+    let cspString = ''
+    // generate csp string with the above hashes
+    for (const cspKey in policies) {
+      if (cspString.length) cspString = cspString + ' '
+      switch (cspKey) {
+        case 'script-src':
+          const scriptCspString = `${cspKey} ${policies[cspKey].join(' ')} ${scriptSrcHashes.join(' ')};`
+          cspString = `${cspString}${scriptCspString}`
+          break
+          case 'style-src':
+          const styleCspString = `${cspKey} ${policies[cspKey].join(' ')} ${styleSrcHashes.join(' ')};`
+          cspString = `${cspString}${styleCspString}`
+          break
+        default:
+          cspString = `${cspString}${cspKey} ${policies[cspKey].join(' ')};`
+          break
+      }
+    }
+
+    return cspString
+  }
+
   async afterGenerate () {
     const { fallback } = this.options.generate
 
@@ -240,6 +288,16 @@ export default class Generator {
       html = this.minifyHtml(html)
     } catch (error) {
       consola.warn('HTML minification failed for SPA fallback')
+    }
+
+    const { csp } = this.options.build
+    const isPolicyAvailable = typeof policies === 'object' && policies !== null && !Array.isArray(policies)
+
+    if (csp && isPolicyAvailable && html) {
+      const cspString = this._generateCspString(html)
+      // save it if needed
+      // display if needed
+      // add meta if needed
     }
 
     await fsExtra.writeFile(fallbackPath, html, 'utf8')
