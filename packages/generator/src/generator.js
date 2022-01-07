@@ -222,7 +222,7 @@ or disable the build step: \`generate({ build: false })\``)
 
   _generateCspString (dom) {
     const { hashAlgorithm, policies, unsafeInlineCompatibility } = this.options.build.csp
-    
+
     const containsUnsafeInlineScriptSrc = policies['script-src'] && policies['script-src'].includes('\'unsafe-inline\'')
     const shouldHashScriptSrc = unsafeInlineCompatibility || !containsUnsafeInlineScriptSrc
 
@@ -248,16 +248,20 @@ or disable the build step: \`generate({ build: false })\``)
     let cspString = ''
     // generate csp string with the above hashes
     for (const cspKey in policies) {
-      if (cspString.length) cspString = cspString + ' '
+      if (cspString.length) {
+        cspString = cspString + ' '
+      }
       switch (cspKey) {
-        case 'script-src':
+        case 'script-src': {
           const scriptCspString = `${cspKey} ${policies[cspKey].join(' ')} ${scriptSrcHashes.join(' ')};`
           cspString = `${cspString}${scriptCspString}`
           break
-          case 'style-src':
+        }
+        case 'style-src': {
           const styleCspString = `${cspKey} ${policies[cspKey].join(' ')} ${styleSrcHashes.join(' ')};`
           cspString = `${cspString}${styleCspString}`
           break
+        }
         default:
           cspString = `${cspString}${cspKey} ${policies[cspKey].join(' ')};`
           break
